@@ -1,3 +1,4 @@
+
 extern crate rand;
 
 use rand::Rng;
@@ -14,7 +15,6 @@ pub fn egcd(a: i64,b: i64) -> (i64, i64, i64) {
 
 pub fn modinv(a: i64, prime: i64) -> Option<i64> {
     let (gcd, x, _) = egcd(a, prime);
-    
     if gcd != 1 {
         None
     }
@@ -67,7 +67,7 @@ pub fn mod_lagrange_interpolation(points: Vec<(i64, i64)>, prime: i64) -> i64 {
         let lagrange_polynomial = num * modinv(den, prime).unwrap();
         res = (res + prime + (y_values[i] * lagrange_polynomial)) % prime;
     }
-    res
+    (res+prime) % prime
 }
 
 pub fn int_to_charset(val: u64, charset: String) -> String {
@@ -78,11 +78,11 @@ pub fn int_to_charset(val: u64, charset: String) -> String {
         let mut res = String::new();
         let mut value = val.clone();
         while value > 0 {
-            value = value / charset.len() as u64;
             let digit = value % charset.len() as u64;
+            value = value / charset.len() as u64;
             res.push(charset.chars().nth(digit as usize).unwrap());
         }
-        res
+        res.chars().rev().collect::<String>()
     }
 }
 
