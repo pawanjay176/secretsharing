@@ -1,96 +1,128 @@
-
+extern crate num;
 extern crate rand;
 
-use rand::Rng;
+use num::bigint::{BigInt, RandBigInt};
+use num::{One, Zero};
+use num::traits::ToPrimitive;
 
-pub fn egcd(a: i64,b: i64) -> (i64, i64, i64) {
-    if a == 0 {
-        (b, 0, 1)
-    }
-    else {
-        let (gcd, x, y) = egcd(b % a, a);
-        (gcd, y - (b/a) * x, x)
+#[derive(Debug)]
+pub enum SSError {
+    NoModInverse,
+    InvalidCharacter,
+}
+
+pub fn egcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
+    if a.is_zero() {
+        (b.clone(), Zero::zero(), One::one())
+    } else {
+        let (gcd, x, y) = egcd(&(b % a), a);
+        (gcd, y - (b / a) * &x, x)
     }
 }
 
-pub fn modinv(a: i64, prime: i64) -> Option<i64> {
+pub fn modinv(a: &BigInt, prime: &BigInt) -> Result<BigInt, SSError> {
     let (gcd, x, _) = egcd(a, prime);
-    if gcd != 1 {
-        None
-    }
-    else {
-        Some(((x % prime) + prime) % prime)
+    if !gcd.is_one() {
+        Err(SSError::NoModInverse)
+    } else {
+        Ok(((x % prime) + prime) % prime)
     }
 }
 
-pub fn random_polynomial(degree: i64, intercept: i64, upper_bound: i64) -> Vec<i64> {
+pub fn random_polynomial(degree: u64, intercept: BigInt, upper_bound: &BigInt) -> Vec<BigInt> {
     let mut coeff = vec![intercept];
     let mut rng = rand::thread_rng();
     for _ in 0..degree {
-        let c = rng.gen_range(0, upper_bound);
+        let c = rng.gen_bigint_range(&0.into(), upper_bound);
         coeff.push(c);
     }
     coeff
 }
 
-
-pub fn get_polynomial_points(coeff: Vec<i64>, num_points: i64, prime: i64) -> Vec<(i64, i64)> {
-    let mut points: Vec<(i64, i64)> = Vec::new();
+pub fn get_polynomial_points(
+    coeff: Vec<BigInt>,
+    num_points: u64,
+    prime: &BigInt,
+) -> Vec<(BigInt, BigInt)> {
+    let mut points: Vec<(BigInt, BigInt)> = Vec::new();
     for i in 1..=num_points {
-        let mut y = coeff[0];
+        let mut y = coeff[0].clone();
         for j in 1..coeff.len() {
-            let exp: i64 = (i.pow(j as u32)) % prime;
-            let term = (coeff[j] * exp) % prime;
+            let exp: BigInt = (i.pow(j as u32)) % prime;
+            let term = (&coeff[j] * exp) % prime;
             y = (y + term) % prime;
         }
-        points.push((i,y));
+        points.push((i.into(), y));
     }
     points
 }
 
-pub fn mod_lagrange_interpolation(points: Vec<(i64, i64)>, prime: i64) -> i64 {
-    let mut res: i64 = 0;
-    let x_values: Vec<i64> = points.iter().map(|(x, _)| *x).collect();    
-    let y_values: Vec<i64> = points.iter().map(|(_, y)| *y).collect();
-    for i in 0..points.len(){
-        let mut num: i64 = 1;
-        let mut den: i64 = 1;
-        for j in 0..points.len(){
+pub fn mod_lagrange_interpolation(points: Vec<(BigInt, BigInt)>, prime: &BigInt) -> Result<BigInt, SSError> {
+    let mut res: BigInt = Zero::zero();
+    let n = points.len();
+    let x_values: Vec<BigInt> = points.clone().into_iter().map(|(x, _)| x).collect();
+    let y_values: Vec<BigInt> = points.into_iter().map(|(_, y)| y).collect();
+    for i in 0..n {
+        let mut num: BigInt = One::one();
+        let mut den: BigInt = One::one();
+        for j in 0..n {
             if i == j {
-                continue
-            }
-            else {
-                num = (num * -x_values[j]) % prime;
-                den = (den * (x_values[i] - x_values[j])) % prime;
+                continue;
+            } else {
+                num = (num * -&x_values[j]) % prime;
+                den = (den * (&x_values[i] - &x_values[j])) % prime;
             }
         }
-        let lagrange_polynomial = num * modinv(den, prime).unwrap();
-        res = (res + prime + (y_values[i] * lagrange_polynomial)) % prime;
+        let lagrange_polynomial = num * modinv(&den, prime)?;
+        res = (res + prime + (&y_values[i] * lagrange_polynomial)) % prime;
     }
-    (res+prime) % prime
+    Ok((res + prime) % prime)
 }
 
-pub fn int_to_charset(val: u64, charset: String) -> String {
-    if val == 0 {
-        charset.chars().nth(0).unwrap().to_string()
-    }
-    else {
+pub fn int_to_charset(mut value: BigInt, charset: &str) -> Result<String, SSError> {
+    if value == Zero::zero() {
+        match charset.chars().nth(0) {
+            None => Err(SSError::InvalidCharacter),
+            Some(x) => Ok(x.to_string())
+        }
+    } else {
         let mut res = String::new();
-        let mut value = val.clone();
-        while value > 0 {
-            let digit = value % charset.len() as u64;
-            value = value / charset.len() as u64;
-            res.push(charset.chars().nth(digit as usize).unwrap());
+        while value > Zero::zero() {
+            let digit: usize = (&value % charset.len()).to_usize().unwrap();
+            value = &value / charset.len();
+            res.push(charset.chars().nth(digit).ok_or(SSError::InvalidCharacter)?);
         }
-        res.chars().rev().collect::<String>()
+        Ok(res.chars().rev().collect::<String>())
     }
 }
 
-pub fn charset_to_int(val: String, charset: String) -> u64 {
-    let mut res: u64 = 0;
+pub fn charset_to_int(val: &str, charset: &str) -> Result<BigInt, SSError> {
+    let mut res: BigInt = Zero::zero();
     for c in val.chars() {
-        res = res * charset.len() as u64 + charset.find(c).unwrap() as u64;
+        res = res * charset.len() + charset.find(c).ok_or(SSError::InvalidCharacter)?;
     }
-    res
+    Ok(res)
 }
 
+// pub fn secret_int_to_points(
+//     secret_int: i64,
+//     t: i64,
+//     n: i64,
+//     prime: i64,
+// ) -> Result<Vec<(i64, i64)>, String> {
+//     if t < 2 {
+//         Err("Threshold should be >=2".to_string())
+//     } else {
+//         if t > n {
+//             Err("t cannot be greater than n".to_string())
+//         } else {
+//             let coeff = random_polynomial(t - 1, secret_int, prime);
+//             println!("{:?}", coeff);
+//             Ok(get_polynomial_points(coeff, n, prime))
+//         }
+//     }
+// }
+
+// pub fn points_to_secret_int(points: Vec<(i64, i64)>, prime: i64) -> i64 {
+//     mod_lagrange_interpolation(points, prime)
+// }
