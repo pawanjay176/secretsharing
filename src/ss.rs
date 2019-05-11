@@ -81,7 +81,7 @@ impl SecretSharing {
 }
 
 /// Reconstruct secret from shares.
-pub fn reconstruct_secret(shares: &Vec<String>, ss: SecretSharing) -> Result<String, SSError> {
+pub fn reconstruct_secret(shares: &[String], ss: SecretSharing) -> Result<String, SSError> {
     // Not enough shares to reconstruct secret.
     if (shares.len() as u32) < ss.threshold() {
         return Err(SSError::InsufficientShares);
