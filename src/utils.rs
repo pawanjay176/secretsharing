@@ -15,6 +15,10 @@ pub enum SSError {
     LowThreshold,
     /// Threshold greated than total.
     HighThreshold,
+    /// Charset cannot contain hyphen.
+    InvalidCharset,
+    /// Share string does not contain hyphen.
+    InvalidShare,
 }
 
 /// Extended euclidean algorithm.
@@ -144,4 +148,35 @@ pub fn points_to_secret_int(
     prime: &BigInt,
 ) -> Result<BigInt, SSError> {
     mod_lagrange_interpolation(&0.into(), points, prime)
+}
+
+/// Converts point representation of share to a string representation
+/// of the form "x-y" where x and y are the string representation of
+/// the given point in the charset.
+pub fn point_to_share_str(point: (BigInt, BigInt), charset: &str) -> Result<String, SSError> {
+    if charset.contains("-") {
+        return Err(SSError::InvalidCharset);
+    }
+    let (x, y) = point;
+    let mut x_str = int_to_charset_repr(x, charset)?;
+    let y_str = int_to_charset_repr(y, charset)?;
+
+    x_str.push_str("-");
+    x_str.push_str(&y_str);
+    Ok(x_str)
+}
+
+/// Convert string representation of point back to original point.
+pub fn share_str_to_point(share: &str, charset: &str) -> Result<(BigInt, BigInt), SSError> {
+    if charset.contains("-") {
+        return Err(SSError::InvalidCharset);
+    }
+    let (x_str, y_str) = match share.split('-').collect::<Vec<_>>().as_slice() {
+        &[x, y] => (x, y),
+        _ => return Err(SSError::InvalidShare),
+    };
+    Ok((
+        charset_repr_to_int(x_str, charset)?,
+        charset_repr_to_int(y_str, charset)?,
+    ))
 }
