@@ -5,7 +5,7 @@ use num::{One, Zero};
 #[derive(Debug)]
 pub enum SSError {
     /// Modular inverse does not exist.
-    NoModInverse(BigInt, BigInt),
+    NoModInverse,
     /// Character not present in charset of SecretSharing instance.
     InvalidCharacter,
     /// Threshold for secret sharing less than 2.
@@ -18,11 +18,31 @@ pub enum SSError {
     InvalidShare,
     /// Insufficient shares to reconstruct secret.
     InsufficientShares,
+    /// Field prime not set.
+    PrimeNotSet,
+    /// Secret too big. We don't have a prime greater than integer representation of secret.
+    SecretTooLarge,
 }
 
 /// Point on the polynomial with coefficients in F_{p}
 #[derive(Debug, Clone)]
 pub struct Point(BigInt, BigInt);
+
+/// Function which returns vector of prime numbers
+fn primes() -> Vec<BigInt> {
+    vec![3.into(), 7.into(), 31.into(), 127.into(), 8191.into(), 131071.into(), 524287.into(), 2147483647.into(), BigInt::parse_bytes(b"2305843009213693951", 10).unwrap(), BigInt::parse_bytes(b"618970019642690137449562111", 10).unwrap(), BigInt::parse_bytes(b"162259276829213363391578010288127", 10).unwrap(), BigInt::parse_bytes(b"170141183460469231731687303715884105727", 10).unwrap(), BigInt::parse_bytes(b"115792089237316195423570985008687907853269984665640564039457584007913129640233", 10).unwrap(), BigInt::parse_bytes(b"2135987035920910082395021706169552114602704522356652769947041607822219725780640550022962086936603", 10).unwrap(),BigInt::parse_bytes(b"39402006196394479212279040100143613805079739270465446667948293404245721771497210611414266254884915640806627990307047", 10).unwrap(), BigInt::parse_bytes(b"6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151", 10).unwrap(), BigInt::parse_bytes(b"531137992816767098689588206552468627329593117727031923199444138200403559860852242739162502265229285668889329486246501015346579337652707239409519978766587351943831270835393219031728127", 10).unwrap(), BigInt::parse_bytes(b"10407932194664399081925240327364085538615262247266704805319112350403608059673360298012239441732324184842421613954281007791383566248323464908139906605677320762924129509389220345773183349661583550472959420547689811211693677147548478866962501384438260291732348885311160828538416585028255604666224831890918801847068222203140521026698435488732958028878050869736186900714720710555703168729087", 10).unwrap()]
+}
+
+/// Return next prime greater than `val` from the primes list.
+pub fn next_prime(val: &BigInt) -> Result<BigInt, SSError> {
+    primes()
+        .into_iter()
+        .skip_while(|x| x <= &&val)
+        .take(1)
+        .collect::<Vec<_>>()
+        .pop()
+        .ok_or(SSError::SecretTooLarge)
+}
 
 /// Extended euclidean algorithm.
 pub fn egcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
@@ -39,7 +59,7 @@ pub fn modinv(a: &BigInt, prime: &BigInt) -> Result<BigInt, SSError> {
     let val = ((a % prime) + prime) % prime;
     let (gcd, x, _) = egcd(&val, prime);
     if !gcd.is_one() {
-        Err(SSError::NoModInverse(a.clone(), prime.clone()))
+        Err(SSError::NoModInverse)
     } else {
         Ok(((x % prime) + prime) % prime)
     }
@@ -83,7 +103,7 @@ pub fn mod_lagrange_interpolation(
 ) -> Result<BigInt, SSError> {
     let mut res: BigInt = Zero::zero();
     let n = points.len();
-    let x_values: Vec<BigInt> = points.clone().into_iter().map(|Point(x,_)| x).collect();
+    let x_values: Vec<BigInt> = points.clone().into_iter().map(|Point(x, _)| x).collect();
     let y_values: Vec<BigInt> = points.into_iter().map(|Point(_, y)| y).collect();
     for i in 0..n {
         let mut num: BigInt = One::one();
@@ -146,10 +166,7 @@ pub fn secret_int_to_points(
 }
 
 /// Recovers secret integer from point shares.
-pub fn points_to_secret_int(
-    points: Vec<Point>,
-    prime: &BigInt,
-) -> Result<BigInt, SSError> {
+pub fn points_to_secret_int(points: Vec<Point>, prime: &BigInt) -> Result<BigInt, SSError> {
     mod_lagrange_interpolation(&0.into(), points, prime)
 }
 
@@ -183,3 +200,4 @@ pub fn share_str_to_point(share: &str, charset: &str) -> Result<Point, SSError> 
         charset_repr_to_int(y_str, charset)?,
     ))
 }
+
