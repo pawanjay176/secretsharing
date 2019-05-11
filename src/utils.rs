@@ -20,6 +20,10 @@ pub enum SSError {
     InsufficientShares,
 }
 
+/// Point on the polynomial with coefficients in F_{p}
+#[derive(Debug, Clone)]
+pub struct Point(BigInt, BigInt);
+
 /// Extended euclidean algorithm.
 pub fn egcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
     if a.is_zero() {
@@ -74,13 +78,13 @@ pub fn get_polynomial_points(
 /// Modular lagrangian interpolation algorithm.
 pub fn mod_lagrange_interpolation(
     x: &BigInt,
-    points: Vec<(BigInt, BigInt)>,
+    points: Vec<Point>,
     prime: &BigInt,
 ) -> Result<BigInt, SSError> {
     let mut res: BigInt = Zero::zero();
     let n = points.len();
-    let x_values: Vec<BigInt> = points.clone().into_iter().map(|(x, _)| x).collect();
-    let y_values: Vec<BigInt> = points.into_iter().map(|(_, y)| y).collect();
+    let x_values: Vec<BigInt> = points.clone().into_iter().map(|Point(x,_)| x).collect();
+    let y_values: Vec<BigInt> = points.into_iter().map(|Point(_, y)| y).collect();
     for i in 0..n {
         let mut num: BigInt = One::one();
         let mut den: BigInt = One::one();
@@ -143,7 +147,7 @@ pub fn secret_int_to_points(
 
 /// Recovers secret integer from point shares.
 pub fn points_to_secret_int(
-    points: Vec<(BigInt, BigInt)>,
+    points: Vec<Point>,
     prime: &BigInt,
 ) -> Result<BigInt, SSError> {
     mod_lagrange_interpolation(&0.into(), points, prime)
@@ -166,7 +170,7 @@ pub fn point_to_share_str(point: &(BigInt, BigInt), charset: &str) -> Result<Str
 }
 
 /// Convert string representation of point back to original point.
-pub fn share_str_to_point(share: &str, charset: &str) -> Result<(BigInt, BigInt), SSError> {
+pub fn share_str_to_point(share: &str, charset: &str) -> Result<Point, SSError> {
     if charset.contains('-') {
         return Err(SSError::InvalidCharset);
     }
@@ -174,7 +178,7 @@ pub fn share_str_to_point(share: &str, charset: &str) -> Result<(BigInt, BigInt)
         [x, y] => (x, y),
         _ => return Err(SSError::InvalidShare),
     };
-    Ok((
+    Ok(Point(
         charset_repr_to_int(x_str, charset)?,
         charset_repr_to_int(y_str, charset)?,
     ))
