@@ -2,15 +2,22 @@ extern crate num;
 extern crate rand;
 
 use num::bigint::{BigInt, RandBigInt};
-use num::{One, Zero};
 use num::traits::ToPrimitive;
+use num::{One, Zero};
 
 #[derive(Debug)]
 pub enum SSError {
-    NoModInverse,
+    /// Modular inverse does not exist.
+    NoModInverse(BigInt, BigInt),
+    /// Character not present in charset of SecretSharing instance.
     InvalidCharacter,
+    /// Threshold for secret sharing less than 2.
+    LowThreshold,
+    /// Threshold greated than total.
+    HighThreshold,
 }
 
+/// Extended euclidean algorithm.
 pub fn egcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
     if a.is_zero() {
         (b.clone(), Zero::zero(), One::one())
@@ -20,16 +27,19 @@ pub fn egcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
     }
 }
 
+/// Modular inverse of `a` w.r.t prime `p`.
 pub fn modinv(a: &BigInt, prime: &BigInt) -> Result<BigInt, SSError> {
-    let (gcd, x, _) = egcd(a, prime);
+    let val = ((a % prime) + prime) % prime;
+    let (gcd, x, _) = egcd(&val, prime);
     if !gcd.is_one() {
-        Err(SSError::NoModInverse)
+        Err(SSError::NoModInverse(a.clone(), prime.clone()))
     } else {
         Ok(((x % prime) + prime) % prime)
     }
 }
 
-pub fn random_polynomial(degree: u64, intercept: BigInt, upper_bound: &BigInt) -> Vec<BigInt> {
+/// Generates coefficients for a random polynomial.
+pub fn random_polynomial(degree: u32, intercept: BigInt, upper_bound: &BigInt) -> Vec<BigInt> {
     let mut coeff = vec![intercept];
     let mut rng = rand::thread_rng();
     for _ in 0..degree {
@@ -39,9 +49,10 @@ pub fn random_polynomial(degree: u64, intercept: BigInt, upper_bound: &BigInt) -
     coeff
 }
 
+/// Calculates (x, y) for given polynomial.
 pub fn get_polynomial_points(
     coeff: Vec<BigInt>,
-    num_points: u64,
+    num_points: u32,
     prime: &BigInt,
 ) -> Vec<(BigInt, BigInt)> {
     let mut points: Vec<(BigInt, BigInt)> = Vec::new();
@@ -57,7 +68,12 @@ pub fn get_polynomial_points(
     points
 }
 
-pub fn mod_lagrange_interpolation(points: Vec<(BigInt, BigInt)>, prime: &BigInt) -> Result<BigInt, SSError> {
+/// Modular lagrangian interpolation algorithm.
+pub fn mod_lagrange_interpolation(
+    x: &BigInt,
+    points: Vec<(BigInt, BigInt)>,
+    prime: &BigInt,
+) -> Result<BigInt, SSError> {
     let mut res: BigInt = Zero::zero();
     let n = points.len();
     let x_values: Vec<BigInt> = points.clone().into_iter().map(|(x, _)| x).collect();
@@ -69,7 +85,7 @@ pub fn mod_lagrange_interpolation(points: Vec<(BigInt, BigInt)>, prime: &BigInt)
             if i == j {
                 continue;
             } else {
-                num = (num * -&x_values[j]) % prime;
+                num = (num * (x - &x_values[j])) % prime;
                 den = (den * (&x_values[i] - &x_values[j])) % prime;
             }
         }
@@ -79,24 +95,31 @@ pub fn mod_lagrange_interpolation(points: Vec<(BigInt, BigInt)>, prime: &BigInt)
     Ok((res + prime) % prime)
 }
 
-pub fn int_to_charset(mut value: BigInt, charset: &str) -> Result<String, SSError> {
+/// Coverts given integer to its representation in given charset.
+pub fn int_to_charset_repr(mut value: BigInt, charset: &str) -> Result<String, SSError> {
     if value == Zero::zero() {
         match charset.chars().nth(0) {
             None => Err(SSError::InvalidCharacter),
-            Some(x) => Ok(x.to_string())
+            Some(x) => Ok(x.to_string()),
         }
     } else {
         let mut res = String::new();
         while value > Zero::zero() {
             let digit: usize = (&value % charset.len()).to_usize().unwrap();
             value = &value / charset.len();
-            res.push(charset.chars().nth(digit).ok_or(SSError::InvalidCharacter)?);
+            res.push(
+                charset
+                    .chars()
+                    .nth(digit)
+                    .ok_or(SSError::InvalidCharacter)?,
+            );
         }
         Ok(res.chars().rev().collect::<String>())
     }
 }
 
-pub fn charset_to_int(val: &str, charset: &str) -> Result<BigInt, SSError> {
+/// Coverts a charset representation to its corresponding integer value.
+pub fn charset_repr_to_int(val: &str, charset: &str) -> Result<BigInt, SSError> {
     let mut res: BigInt = Zero::zero();
     for c in val.chars() {
         res = res * charset.len() + charset.find(c).ok_or(SSError::InvalidCharacter)?;
@@ -104,25 +127,21 @@ pub fn charset_to_int(val: &str, charset: &str) -> Result<BigInt, SSError> {
     Ok(res)
 }
 
-// pub fn secret_int_to_points(
-//     secret_int: i64,
-//     t: i64,
-//     n: i64,
-//     prime: i64,
-// ) -> Result<Vec<(i64, i64)>, String> {
-//     if t < 2 {
-//         Err("Threshold should be >=2".to_string())
-//     } else {
-//         if t > n {
-//             Err("t cannot be greater than n".to_string())
-//         } else {
-//             let coeff = random_polynomial(t - 1, secret_int, prime);
-//             println!("{:?}", coeff);
-//             Ok(get_polynomial_points(coeff, n, prime))
-//         }
-//     }
-// }
+/// Splits a secret to share points.
+pub fn secret_int_to_points(
+    secret_int: BigInt,
+    t: u32,
+    n: u32,
+    prime: &BigInt,
+) -> Vec<(BigInt, BigInt)> {
+    let coeff = random_polynomial(t - 1, secret_int, prime);
+    get_polynomial_points(coeff, n, prime)
+}
 
-// pub fn points_to_secret_int(points: Vec<(i64, i64)>, prime: i64) -> i64 {
-//     mod_lagrange_interpolation(points, prime)
-// }
+/// Recovers secret integer from point shares.
+pub fn points_to_secret_int(
+    points: Vec<(BigInt, BigInt)>,
+    prime: &BigInt,
+) -> Result<BigInt, SSError> {
+    mod_lagrange_interpolation(&0.into(), points, prime)
+}
