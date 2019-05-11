@@ -11,7 +11,7 @@ pub struct SecretSharing {
     /// The character set used by the secret.
     charset: Charset,
     /// Prime number used for the prime field for polynomial operations.
-    mut prime: Option<BigInt>,
+    prime: Option<BigInt>,
 }
 
 impl SecretSharing {
