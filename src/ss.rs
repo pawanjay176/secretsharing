@@ -15,21 +15,13 @@ pub struct SecretSharing {
 }
 
 impl SecretSharing {
-    pub fn new(threshold: u32, total: u32, charset: Charset) -> Result<Self, SSError> {
-        // Need threshold to be atleast 2.
-        if threshold < 2 {
-            return Err(SSError::LowThreshold);
-        }
-        // Threshold can't be greater than total.
-        if threshold > total {
-            return Err(SSError::HighThreshold);
-        }
-        Ok(SecretSharing {
+    pub fn new(threshold: u32, total: u32, charset: Charset) -> Self {
+        SecretSharing {
             threshold,
             total,
             charset,
             prime: None,
-        })
+        }
     }
 
     /// Minimum number of shares required to reconstruct secret.
@@ -64,6 +56,14 @@ impl SecretSharing {
 
     /// Split a secret to shares based on SecretSharing params.
     pub fn generate_shares(&mut self, secret: &str) -> Result<Vec<String>, SSError> {
+        // Need threshold to be atleast 2.
+        if self.threshold() < 2 {
+            return Err(SSError::LowThreshold);
+        }
+        // Threshold can't be greater than total.
+        if self.threshold() > self.total() {
+            return Err(SSError::HighThreshold);
+        }
         // Convert secret to its integer representation in charset.
         let secret_int = utils::charset_repr_to_int(secret, self.charset())?;
         // Set prime to be prime number greater than `secret_int`.

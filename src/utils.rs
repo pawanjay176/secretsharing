@@ -200,4 +200,3 @@ pub fn share_str_to_point(share: &str, charset: &str) -> Result<Point, SSError> 
         charset_repr_to_int(y_str, charset)?,
     ))
 }
-
