@@ -1,6 +1,3 @@
-extern crate num;
-extern crate rand;
-
 use num::bigint::{BigInt, RandBigInt};
 use num::traits::ToPrimitive;
 use num::{One, Zero};
@@ -19,6 +16,8 @@ pub enum SSError {
     InvalidCharset,
     /// Share string does not contain hyphen.
     InvalidShare,
+    /// Insufficient shares to reconstruct secret.
+    InsufficientShares,
 }
 
 /// Extended euclidean algorithm.
@@ -153,13 +152,13 @@ pub fn points_to_secret_int(
 /// Converts point representation of share to a string representation
 /// of the form "x-y" where x and y are the string representation of
 /// the given point in the charset.
-pub fn point_to_share_str(point: (BigInt, BigInt), charset: &str) -> Result<String, SSError> {
-    if charset.contains("-") {
+pub fn point_to_share_str(point: &(BigInt, BigInt), charset: &str) -> Result<String, SSError> {
+    if charset.contains('-') {
         return Err(SSError::InvalidCharset);
     }
     let (x, y) = point;
-    let mut x_str = int_to_charset_repr(x, charset)?;
-    let y_str = int_to_charset_repr(y, charset)?;
+    let mut x_str = int_to_charset_repr(x.clone(), charset)?;
+    let y_str = int_to_charset_repr(y.clone(), charset)?;
 
     x_str.push_str("-");
     x_str.push_str(&y_str);
@@ -168,11 +167,11 @@ pub fn point_to_share_str(point: (BigInt, BigInt), charset: &str) -> Result<Stri
 
 /// Convert string representation of point back to original point.
 pub fn share_str_to_point(share: &str, charset: &str) -> Result<(BigInt, BigInt), SSError> {
-    if charset.contains("-") {
+    if charset.contains('-') {
         return Err(SSError::InvalidCharset);
     }
-    let (x_str, y_str) = match share.split('-').collect::<Vec<_>>().as_slice() {
-        &[x, y] => (x, y),
+    let (x_str, y_str) = match *share.split('-').collect::<Vec<_>>().as_slice() {
+        [x, y] => (x, y),
         _ => return Err(SSError::InvalidShare),
     };
     Ok((
