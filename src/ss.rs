@@ -101,6 +101,7 @@ impl SecretSharing {
 pub enum Charset {
     Hex,
     Alphanumeric,
+    Base58,
 }
 
 impl Charset {
@@ -110,6 +111,9 @@ impl Charset {
             Charset::Hex => "0123456789abcdef",
             Charset::Alphanumeric => {
                 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            }
+            Charset::Base58 => {
+                "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
             }
         }
     }
