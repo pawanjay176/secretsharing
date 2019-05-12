@@ -1,6 +1,6 @@
 extern crate secretsharing;
 
-use secretsharing::ss::{reconstruct_secret, Charset, SecretSharing};
+use secretsharing::ss::{Charset, SecretSharing};
 
 fn main() {
     let threshold = 3;
@@ -12,6 +12,6 @@ fn main() {
         Charset::Alphanumeric, // Charset of secret.
     );
     let shares = ss.generate_shares(secret).unwrap();
-    let reconstructed_secret = reconstruct_secret(&shares[0..3].to_vec(), ss).unwrap();
+    let reconstructed_secret = ss.reconstruct_secret(&shares[0..3].to_vec()).unwrap();
     assert_eq!(reconstructed_secret, secret);
 }

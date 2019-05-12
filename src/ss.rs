@@ -78,23 +78,23 @@ impl SecretSharing {
             .collect();
         shares
     }
-}
 
-/// Reconstruct secret from shares.
-pub fn reconstruct_secret(shares: &[String], ss: SecretSharing) -> Result<String, SSError> {
-    // Not enough shares to reconstruct secret.
-    if (shares.len() as u32) < ss.threshold() {
-        return Err(SSError::InsufficientShares);
+    /// Reconstruct secret from shares.
+    pub fn reconstruct_secret(&self, shares: &[String]) -> Result<String, SSError> {
+        // Not enough shares to reconstruct secret.
+        if (shares.len() as u32) < self.threshold() {
+            return Err(SSError::InsufficientShares);
+        }
+        // Convert shares to their point representations.
+        let point_shares: Result<Vec<_>, SSError> = shares
+            .iter()
+            .map(|share| utils::share_str_to_point(share.as_str(), self.charset()))
+            .collect();
+        // Recover secret_int.
+        let secret_int = utils::points_to_secret_int(point_shares?, self.prime()?)?;
+        // Convert secret_int to secret based on charset.
+        utils::int_to_charset_repr(secret_int, self.charset())
     }
-    // Convert shares to their point representations.
-    let point_shares: Result<Vec<_>, SSError> = shares
-        .iter()
-        .map(|share| utils::share_str_to_point(share.as_str(), ss.charset()))
-        .collect();
-    // Recover secret_int.
-    let secret_int = utils::points_to_secret_int(point_shares?, ss.prime()?)?;
-    // Convert secret_int to secret based on charset.
-    utils::int_to_charset_repr(secret_int, ss.charset())
 }
 
 /// Possible charsets for secret.
